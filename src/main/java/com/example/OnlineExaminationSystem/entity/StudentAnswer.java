@@ -29,5 +29,6 @@ public class StudentAnswer {
     private String answerText; // for short/long
 
     @ManyToOne
-    private QuestionOption selectedOptionId; // for mcq
+    @JoinColumn(name = "selected_option_id")
+    private QuestionOption selectedOption; // for mcq
 }
