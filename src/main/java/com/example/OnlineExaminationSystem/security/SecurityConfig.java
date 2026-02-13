@@ -35,7 +35,8 @@ public class SecurityConfig {
                                 "/api/students/login",
                                 "/api/students/change-password",
                                 "/api/admin/exams/test",
-                                "/api/students/exams/**"
+                                "/api/students/exams/**",
+                                "/error"
                         ).permitAll()
                         .requestMatchers("/api/admin/exams/**").permitAll()
 

@@ -48,5 +48,4 @@ public class AdminController {
                 admin.getUsername()
         ));
     }
-
 }
