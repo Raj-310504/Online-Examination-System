@@ -1,6 +1,7 @@
 package com.example.OnlineExaminationSystem.entity;
 
 import com.example.OnlineExaminationSystem.enums.ExamAttemptStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -24,10 +25,12 @@ public class StudentExam {
 
     @ManyToOne
     @NotNull
+    @JsonIgnore
     private Student student;
 
     @ManyToOne
     @NotNull
+    @JsonIgnore
     private Exam exam;
 
     private LocalDateTime startedAt;

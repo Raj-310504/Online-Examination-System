@@ -1,5 +1,6 @@
 package com.example.OnlineExaminationSystem.controller;
 
+import com.example.OnlineExaminationSystem.dto.ActiveExamsResponse;
 import com.example.OnlineExaminationSystem.dto.ExamResponseDTO;
 import com.example.OnlineExaminationSystem.service.StudentExamService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,9 @@ public class StudentExamController {
     private StudentExamService  studentExamService;
 
     @GetMapping("/active")
-    public ResponseEntity<List<ExamResponseDTO>> getActiveExams() {
-        return ResponseEntity.ok(studentExamService.getActiveExams());
+    public ResponseEntity<ActiveExamsResponse> getActiveExams() {
+        List<ExamResponseDTO> exams = studentExamService.getActiveExams();
+        String message = exams.isEmpty() ? "No active exams" : "Active exams found";
+        return ResponseEntity.ok(new ActiveExamsResponse(message, exams));
     }
 }

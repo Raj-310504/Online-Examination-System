@@ -1,9 +1,6 @@
 package com.example.OnlineExaminationSystem.service;
 
-import com.example.OnlineExaminationSystem.dto.ExamCreateRequest;
-import com.example.OnlineExaminationSystem.dto.ExamSectionRequest;
-import com.example.OnlineExaminationSystem.dto.QuestionOptionRequest;
-import com.example.OnlineExaminationSystem.dto.QuestionRequest;
+import com.example.OnlineExaminationSystem.dto.*;
 import com.example.OnlineExaminationSystem.entity.Exam;
 import com.example.OnlineExaminationSystem.entity.ExamSection;
 import com.example.OnlineExaminationSystem.entity.Question;
@@ -13,7 +10,9 @@ import com.example.OnlineExaminationSystem.enums.QuestionType;
 import com.example.OnlineExaminationSystem.repository.ExamRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +21,15 @@ public class ExamService {
 
     @Autowired
     private ExamRepository examRepository;
+
+//    @Autowired
+//    private RestTemplate restTemplate;
+//
+//    public UserResponse getUser() {
+//
+//        String url = "https://jsonplaceholder.typicode.com/users/1";
+//        return restTemplate.getForObject(url, UserResponse.class);
+//    }
 
     // create exam
     public Exam createExam(ExamCreateRequest request) {
@@ -79,5 +87,37 @@ public class ExamService {
 
         exam.setSections(sections);
         return examRepository.save(exam);
+    }
+
+    public int refreshExamStatuses() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Exam> exams = examRepository.findAll();
+        int updated = 0;
+
+        for (Exam exam : exams) {
+            if (exam.getStatus() == ExamStatus.CANCELLED) {
+                continue;
+            }
+
+            ExamStatus newStatus;
+            if (now.isBefore(exam.getStartTime())) {
+                newStatus = ExamStatus.UPCOMING;
+            } else if (now.isAfter(exam.getEndTime())) {
+                newStatus = ExamStatus.COMPLETED;
+            } else {
+                newStatus = ExamStatus.ONGOING;
+            }
+
+            if (newStatus != exam.getStatus()) {
+                exam.setStatus(newStatus);
+                updated++;
+            }
+        }
+
+        if (updated > 0) {
+            examRepository.saveAll(exams);
+        }
+
+        return updated;
     }
 }

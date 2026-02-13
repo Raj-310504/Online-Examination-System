@@ -1,5 +1,6 @@
 package com.example.OnlineExaminationSystem.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,5 +27,6 @@ public class QuestionOption {
     @ManyToOne
     @JoinColumn(name = "question_id")
     @NotNull
+    @JsonIgnore
     private Question question;
 }

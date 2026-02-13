@@ -1,6 +1,7 @@
 package com.example.OnlineExaminationSystem.entity;
 
 import com.example.OnlineExaminationSystem.enums.SectionType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -36,6 +37,7 @@ public class ExamSection {
 
     @ManyToOne
     @NotNull
+    @JsonIgnore
     private Exam exam;
 
     @OneToMany(mappedBy = "section", cascade = CascadeType.ALL,

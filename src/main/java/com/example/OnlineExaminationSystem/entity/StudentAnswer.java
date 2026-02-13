@@ -1,5 +1,6 @@
 package com.example.OnlineExaminationSystem.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -20,15 +21,18 @@ public class StudentAnswer {
 
     @ManyToOne
     @NotNull
+    @JsonIgnore
     private StudentExam studentExam;
 
     @ManyToOne
     @NotNull
+    @JsonIgnore
     private Question question;
 
     private String answerText; // for short/long
 
     @ManyToOne
     @JoinColumn(name = "selected_option_id")
+    @JsonIgnore
     private QuestionOption selectedOption; // for mcq
 }
