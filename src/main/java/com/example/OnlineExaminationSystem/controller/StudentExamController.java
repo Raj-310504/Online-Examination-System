@@ -45,5 +45,4 @@ public class StudentExamController {
                 "answerId", savedAnswer.getId()
         ));
     }
-
 }

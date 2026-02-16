@@ -20,11 +20,6 @@ public class AdminExamController {
         this.examService = examService;
     }
 
-//    @GetMapping("/test")
-//    public UserResponse testExternalApi() {
-//        return examService.getUser();
-//    }
-
     @PostMapping
     public ResponseEntity<Exam> createExam(
             @RequestBody @Valid ExamCreateRequest request
