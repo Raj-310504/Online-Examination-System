@@ -1,11 +1,9 @@
 package com.example.OnlineExaminationSystem.controller;
 
-import com.example.OnlineExaminationSystem.dto.AdminLoginRequestDTO;
-import com.example.OnlineExaminationSystem.dto.AdminLoginResponseDTO;
+import com.example.OnlineExaminationSystem.dto.*;
 import com.example.OnlineExaminationSystem.entity.Admin;
 import com.example.OnlineExaminationSystem.service.AdminService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,8 +13,11 @@ import java.util.List;
 @RequestMapping("/api/admins")
 public class AdminController {
 
-    @Autowired
-    private AdminService adminService;
+    private final AdminService adminService;
+
+    public AdminController(AdminService adminService) {
+        this.adminService = adminService;
+    }
 
     // create admin
     @PostMapping

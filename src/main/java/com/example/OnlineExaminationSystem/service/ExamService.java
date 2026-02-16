@@ -7,11 +7,9 @@ import com.example.OnlineExaminationSystem.entity.Question;
 import com.example.OnlineExaminationSystem.entity.QuestionOption;
 import com.example.OnlineExaminationSystem.enums.ExamStatus;
 import com.example.OnlineExaminationSystem.enums.QuestionType;
+import com.example.OnlineExaminationSystem.exception.BadRequestException;
 import com.example.OnlineExaminationSystem.repository.ExamRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,8 +17,11 @@ import java.util.List;
 @Service
 public class ExamService {
 
-    @Autowired
-    private ExamRepository examRepository;
+    private final ExamRepository examRepository;
+
+    public ExamService(ExamRepository examRepository) {
+        this.examRepository = examRepository;
+    }
 
 //    @Autowired
 //    private RestTemplate restTemplate;
@@ -33,6 +34,8 @@ public class ExamService {
 
     // create exam
     public Exam createExam(ExamCreateRequest request) {
+        validateExamRequest(request);
+
         Exam exam = new Exam();
         exam.setExamName(request.getExamName());
         exam.setStartTime(request.getStartTime());
@@ -42,7 +45,7 @@ public class ExamService {
 
         List<ExamSection> sections = new ArrayList<>();
 
-        for(ExamSectionRequest secReq : request.getSections()) {
+        for (ExamSectionRequest secReq : request.getSections()) {
 
             ExamSection section = new ExamSection();
             section.setSectionName(secReq.getSectionName());
@@ -53,7 +56,7 @@ public class ExamService {
 
             List<Question> questions = new ArrayList<>();
 
-            for(QuestionRequest qReq : secReq.getQuestions()) {
+            for (QuestionRequest qReq : secReq.getQuestions()) {
 
                 Question question = new Question();
                 question.setQuestionText(qReq.getQuestionText());
@@ -62,13 +65,18 @@ public class ExamService {
                 question.setSection(section);
 
                 // mcq validation
-                if(qReq.getType() == QuestionType.MCQ) {
-                    if(qReq.getOptions() == null || qReq.getOptions().isEmpty()) {
-                        throw new RuntimeException("MCQ must have options");
+                if (qReq.getType() == QuestionType.MCQ) {
+                    if (qReq.getOptions() == null || qReq.getOptions().isEmpty()) {
+                        throw new BadRequestException("MCQ must have options");
+                    }
+
+                    long correctCount = qReq.getOptions().stream().filter(QuestionOptionRequest::isCorrect).count();
+                    if (correctCount != 1) {
+                        throw new BadRequestException("MCQ must have exactly one correct option");
                     }
 
                     List<QuestionOption> options = new ArrayList<>();
-                    for(QuestionOptionRequest optionReq : qReq.getOptions()) {
+                    for (QuestionOptionRequest optionReq : qReq.getOptions()) {
                         QuestionOption option = new QuestionOption();
                         option.setOptionText(optionReq.getOptionText());
                         option.setCorrect(optionReq.isCorrect());
@@ -76,6 +84,8 @@ public class ExamService {
                         options.add(option);
                     }
                     question.setOptions(options);
+                } else if (qReq.getOptions() != null && !qReq.getOptions().isEmpty()) {
+                    throw new BadRequestException("Only MCQ questions can contain options");
                 }
 
                 questions.add(question);
@@ -86,7 +96,7 @@ public class ExamService {
         }
 
         exam.setSections(sections);
-        return examRepository.save(exam);
+        return examRepository.save(syncStatus(exam));
     }
 
     public int refreshExamStatuses() {
@@ -99,14 +109,7 @@ public class ExamService {
                 continue;
             }
 
-            ExamStatus newStatus;
-            if (now.isBefore(exam.getStartTime())) {
-                newStatus = ExamStatus.UPCOMING;
-            } else if (now.isAfter(exam.getEndTime())) {
-                newStatus = ExamStatus.COMPLETED;
-            } else {
-                newStatus = ExamStatus.ONGOING;
-            }
+            ExamStatus newStatus = computeStatus(now, exam);
 
             if (newStatus != exam.getStatus()) {
                 exam.setStatus(newStatus);
@@ -119,5 +122,49 @@ public class ExamService {
         }
 
         return updated;
+    }
+
+    public Exam syncAndSaveStatus(Exam exam) {
+        ExamStatus before = exam.getStatus();
+        Exam synced = syncStatus(exam);
+        if (before != synced.getStatus()) {
+            return examRepository.save(synced);
+        }
+        return synced;
+    }
+
+    private void validateExamRequest(ExamCreateRequest request) {
+        if (request.getStartTime() == null || request.getEndTime() == null) {
+            throw new BadRequestException("Exam start time and end time are required");
+        }
+        if (!request.getEndTime().isAfter(request.getStartTime())) {
+            throw new BadRequestException("Exam end time must be after start time");
+        }
+        if (request.getSections() == null || request.getSections().isEmpty()) {
+            throw new BadRequestException("Exam must contain at least one section");
+        }
+        for (ExamSectionRequest section : request.getSections()) {
+            if (section.getQuestions() == null || section.getQuestions().isEmpty()) {
+                throw new BadRequestException("Section must contain at least one question");
+            }
+        }
+    }
+
+    private Exam syncStatus(Exam exam) {
+        if (exam.getStatus() == ExamStatus.CANCELLED) {
+            return exam;
+        }
+        exam.setStatus(computeStatus(LocalDateTime.now(), exam));
+        return exam;
+    }
+
+    private ExamStatus computeStatus(LocalDateTime now, Exam exam) {
+        if (now.isBefore(exam.getStartTime())) {
+            return ExamStatus.UPCOMING;
+        }
+        if (!now.isBefore(exam.getEndTime())) {
+            return ExamStatus.COMPLETED;
+        }
+        return ExamStatus.ONGOING;
     }
 }

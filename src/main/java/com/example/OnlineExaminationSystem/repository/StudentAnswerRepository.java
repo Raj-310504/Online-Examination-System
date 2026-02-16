@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Set;
 
 public interface StudentAnswerRepository extends JpaRepository<StudentAnswer, Long> {
 
@@ -13,4 +14,12 @@ public interface StudentAnswerRepository extends JpaRepository<StudentAnswer, Lo
 
     @Query("select count(distinct sa.question.id) from StudentAnswer sa where sa.studentExam.id = :studentExamId")
     long countDistinctQuestionsByStudentExamId(@Param("studentExamId") Long studentExamId);
+
+    @Query("""
+            select count(distinct sa.question.id)
+            from StudentAnswer sa
+            where sa.studentExam.id = :studentExamId and sa.question.id in :questionIds
+            """)
+    long countDistinctQuestionsByStudentExamIdAndQuestionIdIn(@Param("studentExamId") Long studentExamId,
+                                                              @Param("questionIds") Set<Long> questionIds);
 }

@@ -9,4 +9,6 @@ import java.util.List;
 
 public interface ExamRepository extends JpaRepository<Exam, Long> {
     List<Exam> findByStatusAndStartTimeBeforeAndEndTimeAfter(ExamStatus examStatus, LocalDateTime start, LocalDateTime end);
+
+    List<Exam> findByStartTimeBeforeAndEndTimeAfter(LocalDateTime start, LocalDateTime end);
 }

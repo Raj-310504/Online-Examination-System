@@ -2,19 +2,22 @@ package com.example.OnlineExaminationSystem.service;
 
 import com.example.OnlineExaminationSystem.entity.Student;
 import com.example.OnlineExaminationSystem.enums.StudentStatus;
+import com.example.OnlineExaminationSystem.exception.BadRequestException;
+import com.example.OnlineExaminationSystem.exception.NotFoundException;
 import com.example.OnlineExaminationSystem.repository.StudentRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class StudentService {
 
-    @Autowired
-    private StudentRepository studentRepository;
+    private final StudentRepository studentRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    public StudentService(StudentRepository studentRepository, PasswordEncoder passwordEncoder) {
+        this.studentRepository = studentRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     public Student createStudent(Student student) {
         student.setRole("ROLE_STUDENT");
@@ -27,14 +30,14 @@ public class StudentService {
 
     public Student login(String studentId, String password) {
         Student student = studentRepository.findByStudentId(studentId)
-                .orElseThrow(()-> new RuntimeException("Invalid Student Id"));
+                .orElseThrow(() -> new NotFoundException("Invalid Student Id"));
 
         if (!passwordEncoder.matches(password, student.getPassword())) {
-            throw new RuntimeException("Invalid Password");
+            throw new BadRequestException("Invalid Password");
         }
 
         if(!student.getStatus().equals(StudentStatus.ACTIVE)) {
-            throw new RuntimeException("Student is blocked");
+            throw new BadRequestException("Student is blocked");
         }
         return student;
     }
@@ -43,10 +46,10 @@ public class StudentService {
     public void changePassword(String studentId, String oldPassword, String newPassword) {
 
         Student student = studentRepository.findByStudentId(studentId)
-                .orElseThrow(() -> new RuntimeException("Student not found"));
+                .orElseThrow(() -> new NotFoundException("Student not found"));
 
         if (!passwordEncoder.matches(oldPassword, student.getPassword())) {
-            throw new RuntimeException("Old password is incorrect");
+            throw new BadRequestException("Old password is incorrect");
         }
 
         student.setPassword(passwordEncoder.encode(newPassword));

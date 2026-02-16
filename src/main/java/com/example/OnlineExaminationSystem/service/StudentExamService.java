@@ -18,52 +18,60 @@ import com.example.OnlineExaminationSystem.entity.StudentExam;
 import com.example.OnlineExaminationSystem.enums.ExamAttemptStatus;
 import com.example.OnlineExaminationSystem.enums.ExamStatus;
 import com.example.OnlineExaminationSystem.enums.QuestionType;
+import com.example.OnlineExaminationSystem.exception.BadRequestException;
+import com.example.OnlineExaminationSystem.exception.ConflictException;
+import com.example.OnlineExaminationSystem.exception.NotFoundException;
 import com.example.OnlineExaminationSystem.repository.ExamRepository;
 import com.example.OnlineExaminationSystem.repository.QuestionOptionRepository;
 import com.example.OnlineExaminationSystem.repository.QuestionRepository;
 import com.example.OnlineExaminationSystem.repository.StudentAnswerRepository;
 import com.example.OnlineExaminationSystem.repository.StudentExamRepository;
 import com.example.OnlineExaminationSystem.repository.StudentRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class StudentExamService {
 
-    @Autowired
-    private StudentExamRepository studentExamRepository;
+    private final StudentExamRepository studentExamRepository;
+    private final ExamRepository examRepository;
+    private final StudentAnswerRepository studentAnswerRepository;
+    private final QuestionRepository questionRepository;
+    private final QuestionOptionRepository questionOptionRepository;
+    private final StudentRepository studentRepository;
+    private final ExamService examService;
 
-    @Autowired
-    private ExamRepository examRepository;
-
-    @Autowired
-    private StudentAnswerRepository studentAnswerRepository;
-
-    @Autowired
-    private QuestionRepository questionRepository;
-
-    @Autowired
-    private QuestionOptionRepository questionOptionRepository;
-
-    @Autowired
-    private StudentRepository studentRepository;
+    public StudentExamService(StudentExamRepository studentExamRepository,
+                              ExamRepository examRepository,
+                              StudentAnswerRepository studentAnswerRepository,
+                              QuestionRepository questionRepository,
+                              QuestionOptionRepository questionOptionRepository,
+                              StudentRepository studentRepository,
+                              ExamService examService) {
+        this.studentExamRepository = studentExamRepository;
+        this.examRepository = examRepository;
+        this.studentAnswerRepository = studentAnswerRepository;
+        this.questionRepository = questionRepository;
+        this.questionOptionRepository = questionOptionRepository;
+        this.studentRepository = studentRepository;
+        this.examService = examService;
+    }
 
     // get all active exams
     public List<ExamResponseDTO> getActiveExams() {
         LocalDateTime now = LocalDateTime.now();
 
         List<Exam> exams = examRepository
-                .findByStatusAndStartTimeBeforeAndEndTimeAfter(
-                        ExamStatus.ONGOING,
-                        now,
-                        now
-                );
+                .findByStartTimeBeforeAndEndTimeAfter(now, now);
 
         return exams.stream()
+                .map(examService::syncAndSaveStatus)
+                .filter(exam -> exam.getStatus() == ExamStatus.ONGOING)
                 .map(this::mapToExamResponse)
                 .toList();
     }
@@ -101,44 +109,45 @@ public class StudentExamService {
     @Transactional
     public StartExamResponse startExam(StartExamRequest request) {
         Student student = studentRepository.findByStudentId(request.getStudentId())
-                .orElseThrow(() -> new RuntimeException("Student not found"));
+                .orElseThrow(() -> new NotFoundException("Student not found"));
 
         Exam exam = examRepository.findById(request.getExamId())
-                .orElseThrow(() -> new RuntimeException("Exam not found"));
+                .orElseThrow(() -> new NotFoundException("Exam not found"));
+        Exam syncedExam = examService.syncAndSaveStatus(exam);
 
-        if (exam.getStatus() != ExamStatus.ONGOING) {
-            throw new RuntimeException("Exam is not ongoing");
+        if (syncedExam.getStatus() != ExamStatus.ONGOING) {
+            throw new ConflictException("Exam is not ongoing");
         }
 
         StudentExam studentExam = studentExamRepository
-                .findByStudentIdAndExamId(student.getId(), exam.getId())
+                .findByStudentIdAndExamId(student.getId(), syncedExam.getId())
                 .orElseGet(() -> {
                     StudentExam attempt = new StudentExam();
                     attempt.setStudent(student);
-                    attempt.setExam(exam);
+                    attempt.setExam(syncedExam);
                     attempt.setStartedAt(LocalDateTime.now());
                     attempt.setEndedAt(null);
-                    attempt.setRemainingTime(exam.getDuration());
+                    attempt.setRemainingTime(syncedExam.getDuration());
                     attempt.setStatus(ExamAttemptStatus.IN_PROGRESS);
                     return attempt;
                 });
 
         if (studentExam.getStatus() == ExamAttemptStatus.SUBMITTED) {
-            throw new RuntimeException("Exam already submitted by this student");
+            throw new ConflictException("Exam already submitted by this student");
         }
 
         StudentExam saved = studentExamRepository.save(studentExam);
         return new StartExamResponse(
                 "Exam attempt ready",
                 saved.getId(),
-                exam.getId(),
+                syncedExam.getId(),
                 student.getStudentId()
         );
     }
 
     public StudentExamQuestionsResponse getExamQuestions(Long examId) {
         Exam exam = examRepository.findById(examId)
-                .orElseThrow(() -> new RuntimeException("Exam not found"));
+                .orElseThrow(() -> new NotFoundException("Exam not found"));
 
         List<StudentSectionQuestionsDTO> sectionDTOs = exam.getSections() == null
                 ? List.of()
@@ -187,17 +196,17 @@ public class StudentExamService {
     @Transactional
     public StudentAnswer submitAnswer(SubmitAnswerRequest request) {
         StudentExam studentExam = studentExamRepository.findById(request.getStudentExamId())
-                .orElseThrow(() -> new RuntimeException("Student exam attempt not found"));
+                .orElseThrow(() -> new NotFoundException("Student exam attempt not found"));
 
         if (studentExam.getStatus() != ExamAttemptStatus.IN_PROGRESS) {
-            throw new RuntimeException("Exam attempt is already submitted");
+            throw new ConflictException("Exam attempt is already submitted");
         }
 
         Question question = questionRepository.findById(request.getQuestionId())
-                .orElseThrow(() -> new RuntimeException("Question not found"));
+                .orElseThrow(() -> new NotFoundException("Question not found"));
 
         if (!question.getSection().getExam().getId().equals(studentExam.getExam().getId())) {
-            throw new RuntimeException("Question does not belong to this exam attempt");
+            throw new BadRequestException("Question does not belong to this exam attempt");
         }
 
         StudentAnswer answer = studentAnswerRepository
@@ -211,21 +220,21 @@ public class StudentExamService {
 
         if (question.getType() == QuestionType.MCQ) {
             if (request.getSelectedOptionId() == null) {
-                throw new RuntimeException("selectedOptionId is required for MCQ");
+                throw new BadRequestException("selectedOptionId is required for MCQ");
             }
 
             QuestionOption selectedOption = questionOptionRepository.findById(request.getSelectedOptionId())
-                    .orElseThrow(() -> new RuntimeException("Selected option not found"));
+                    .orElseThrow(() -> new NotFoundException("Selected option not found"));
 
             if (!selectedOption.getQuestion().getId().equals(question.getId())) {
-                throw new RuntimeException("Selected option does not belong to this question");
+                throw new BadRequestException("Selected option does not belong to this question");
             }
 
             answer.setSelectedOption(selectedOption);
             answer.setAnswerText(null);
         } else {
             if (request.getAnswerText() == null || request.getAnswerText().isBlank()) {
-                throw new RuntimeException("answerText is required for descriptive questions");
+                throw new BadRequestException("answerText is required for descriptive questions");
             }
 
             answer.setAnswerText(request.getAnswerText().trim());
@@ -234,27 +243,33 @@ public class StudentExamService {
 
         StudentAnswer savedAnswer = studentAnswerRepository.save(answer);
 
-        int totalQuestions = getTotalQuestionCount(studentExam.getExam());
-        long answeredQuestions = studentAnswerRepository
-                .countDistinctQuestionsByStudentExamId(studentExam.getId());
+        Set<Long> requiredQuestionIds = getRequiredQuestionIds(studentExam.getExam());
+        if (!requiredQuestionIds.isEmpty()) {
+            long answeredQuestions = studentAnswerRepository
+                    .countDistinctQuestionsByStudentExamIdAndQuestionIdIn(studentExam.getId(), requiredQuestionIds);
 
-        if (totalQuestions > 0 && answeredQuestions >= totalQuestions) {
-            studentExam.setStatus(ExamAttemptStatus.SUBMITTED);
-            studentExam.setEndedAt(LocalDateTime.now());
-            studentExam.setRemainingTime(0);
-            studentExamRepository.save(studentExam);
+            if (answeredQuestions >= requiredQuestionIds.size()) {
+                studentExam.setStatus(ExamAttemptStatus.SUBMITTED);
+                studentExam.setEndedAt(LocalDateTime.now());
+                studentExam.setRemainingTime(0);
+                studentExamRepository.save(studentExam);
+            }
         }
 
         return savedAnswer;
     }
 
-    private int getTotalQuestionCount(Exam exam) {
+    private Set<Long> getRequiredQuestionIds(Exam exam) {
         if (exam.getSections() == null) {
-            return 0;
+            return Set.of();
         }
 
+        boolean hasCompulsorySection = exam.getSections().stream().anyMatch(section -> section.isCompulsory());
+
         return exam.getSections().stream()
-                .mapToInt(section -> section.getQuestions() == null ? 0 : section.getQuestions().size())
-                .sum();
+                .filter(section -> !hasCompulsorySection || section.isCompulsory())
+                .flatMap(section -> section.getQuestions() == null ? List.<Question>of().stream() : section.getQuestions().stream())
+                .map(Question::getId)
+                .collect(Collectors.toSet());
     }
 }

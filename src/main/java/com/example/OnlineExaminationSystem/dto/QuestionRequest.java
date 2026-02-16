@@ -1,6 +1,7 @@
 package com.example.OnlineExaminationSystem.dto;
 
 import com.example.OnlineExaminationSystem.enums.QuestionType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -24,5 +25,6 @@ public class QuestionRequest {
     @Positive
     private int marks;
 
+    @Valid
     private List<QuestionOptionRequest> options; // only for MCQ
 }

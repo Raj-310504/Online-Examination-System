@@ -1,11 +1,9 @@
 package com.example.OnlineExaminationSystem.controller;
 
 import com.example.OnlineExaminationSystem.dto.ExamCreateRequest;
-import com.example.OnlineExaminationSystem.dto.UserResponse;
 import com.example.OnlineExaminationSystem.entity.Exam;
 import com.example.OnlineExaminationSystem.service.ExamService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,8 +14,11 @@ import java.util.Map;
 @RequestMapping("/api/admin/exams")
 public class AdminExamController {
 
-    @Autowired
-    private ExamService examService;
+    private final ExamService examService;
+
+    public AdminExamController(ExamService examService) {
+        this.examService = examService;
+    }
 
 //    @GetMapping("/test")
 //    public UserResponse testExternalApi() {

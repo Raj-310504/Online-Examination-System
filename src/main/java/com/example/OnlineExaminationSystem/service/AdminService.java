@@ -1,8 +1,9 @@
 package com.example.OnlineExaminationSystem.service;
 
 import com.example.OnlineExaminationSystem.entity.Admin;
+import com.example.OnlineExaminationSystem.exception.BadRequestException;
+import com.example.OnlineExaminationSystem.exception.NotFoundException;
 import com.example.OnlineExaminationSystem.repository.AdminRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -11,11 +12,13 @@ import java.util.List;
 @Service
 public class AdminService {
 
-    @Autowired
-    private AdminRepository adminRepository;
+    private final AdminRepository adminRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    public AdminService(AdminRepository adminRepository, PasswordEncoder passwordEncoder) {
+        this.adminRepository = adminRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     public Admin createAdmin(Admin admin) {
 
@@ -33,16 +36,16 @@ public class AdminService {
 
     public Admin getAdminById(Long id) {
         return adminRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Admin not found with id: " + id));
+                .orElseThrow(() -> new NotFoundException("Admin not found with id: " + id));
     }
 
     // login
     public Admin login(String username, String password) {
         Admin admin = adminRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Invalid username"));
+                .orElseThrow(() -> new NotFoundException("Invalid username"));
 
         if(!passwordEncoder.matches(password,admin.getPassword())) {
-            throw new RuntimeException("Invalid password");
+            throw new BadRequestException("Invalid password");
         }
         return admin;
     }
